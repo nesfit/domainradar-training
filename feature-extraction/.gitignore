@@ -1,0 +1,17 @@
+.env
+.venv
+cache/**/*.parquet
+*.parquet
+.ipynb_checkpoints
+shap_values.pickle.dat
+
+__pycache__/
+*.py[cod]
+
+dp-things/*
+
+.idea/
+
+false_positives/*.pdf
+false_positives/force_plots/*.pdf
+false_positives/waterfall_plots/*.pdf
