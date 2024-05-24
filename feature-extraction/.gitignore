@@ -15,3 +15,7 @@ dp-things/*
 false_positives/*.pdf
 false_positives/force_plots/*.pdf
 false_positives/waterfall_plots/*.pdf
+
+# Ignore Python bytecode
+__pycache__/
+*.pyc
