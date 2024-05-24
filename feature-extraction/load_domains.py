@@ -10,7 +10,7 @@ load_dotenv()
 
 # Use the MongoDB URI from the .env file
 mongo_uri = os.getenv('DR_MONGO_URI')
-db = os.getenv('DR_DB_NAME')
+db = os.getenv('DR_DB_NAME', 'drdb')
 
 def main():
     parser = argparse.ArgumentParser(description='Process and manipulate domain names from a MongoDB collection.')

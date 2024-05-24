@@ -9,21 +9,21 @@
 # to save an intermediate dataframe after a transform, append _save to the imported name
 
 # combine label and category into a single field
-#from .label import label as transform_label
+from .label import label as transform_label
 # transform DNS
-#from .dns import dns as transform_dns_save
+from .dns import dns as transform_dns_save
 # calculate IP-related features
-#from .ip import ip as transform_ip_save
+from .ip import ip as transform_ip_save
 # flatten nested IP Geo fields
-#from .flatten_geo import flatten_geo as transform_flatten
+from .flatten_geo import flatten_geo as transform_flatten
 # analyze TLS certificates
-#from .tls import tls as transform_tls_save
+from .tls import tls as transform_tls_save
 # calculate length of domain name
-#from .lexical import lex as transform_lexical_save
+from .lexical import lex as transform_lexical_save
 # calculate standard deviation of latitudes and longitudes
-#from .geo import geo as transform_geo
+from .geo import geo as transform_geo
 # transform RDAP
-#from .rdap import rdap as transform_rdap
+from .rdap import rdap as transform_rdap
 
 # drop non-training columns (done before training)
 # from .drop_nontrain import drop_nontrain as transform_drop
