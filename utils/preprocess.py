@@ -30,7 +30,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from xgboost import XGBClassifier
 from sklearn.tree import DecisionTreeClassifier
-#import cross_val_score from sklearn.model_selection
 from sklearn.model_selection import cross_val_score
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder
@@ -47,27 +46,31 @@ import torch
 from category_encoders import BinaryEncoder
 
 
+# Importing dga mapping
+from .dga_mapping import class_map as dga_class_map
+
 # Suppress specific warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="pandas.api.types")
 warnings.filterwarnings("ignore", message="is_sparse is deprecated", category=FutureWarning)
 warnings.filterwarnings("ignore", message="is_categorical_dtype is deprecated", category=FutureWarning)
 warnings.filterwarnings('ignore', category=UserWarning)
 
-
-
 init(autoreset=True)
 
 class FeatureEngineeringCLI:
-    def __init__(self, input_data, one_line_processing: bool):
+    def __init__(self, input_data, one_line_processing: bool, dga: str = 'False'):
         self.logger = self.configure_logger()
         self.one_line_processing = one_line_processing
+        self.dga = dga
         if self.one_line_processing:
-            # Assume input_data is a DataFrame for a single record
             self.single_record_df = pd.DataFrame([input_data])
         else:
-            # Assume input_data is a dictionary with benign and malign dataset paths
-            self.benign_path = input_data.get('benign')
-            self.malign_path = input_data.get('malign')
+            # Depending on DGA mode, setup paths
+            if dga == 'multiclass':
+                self.malign_path = input_data.get('malign')
+            else:
+                self.benign_path = input_data.get('benign', None)
+                self.malign_path = input_data.get('malign', None)
             self.single_record_df = None
 
         self.DEFAULT_INPUT_DIR = ""
@@ -103,16 +106,14 @@ class FeatureEngineeringCLI:
         self.scaler_path = os.path.join(self.borders_dir, self.scaler_path)
         self.outliers_path = os.path.join(self.borders_dir, self.outliers_path)
 
-        self.model_path = os.path.join(self.borders_dir, 'malware_decision_tree_model.joblib')
+        self.model_path = os.path.join(self.borders_dir, 'decision_tree_model.joblib')
         self.model = None
-
 
     def print_header(self, message: str) -> None:
         header = f"{'=' * len(message)}"
         self.logger.info(self.color_log(header, Fore.CYAN))
         self.logger.info(self.color_log(message, Fore.CYAN))
         self.logger.info(self.color_log(header, Fore.CYAN))
-
 
     def configure_logger(self) -> logging.Logger:
         logger = logging.getLogger(__name__)
@@ -148,7 +149,6 @@ class FeatureEngineeringCLI:
             self.logger.info(self.color_log(f"Outliers thresholds saved to {self.outliers_path}", Fore.GREEN))
             self.outliers_saved = True  
 
-
     def load_borders(self):
         """Load both scaler and outlier thresholds from the specified directory."""
         if os.path.exists(self.scaler_path):
@@ -159,13 +159,11 @@ class FeatureEngineeringCLI:
             self.outliers = joblib.load(self.outliers_path)
             self.logger.info(self.color_log(f"Outliers thresholds loaded from {self.outliers_path}", Fore.GREEN))
 
-
     def save_model(self):
         """Save the decision tree model to the specified directory."""
         if self.model is not None:
             joblib.dump(self.model, self.model_path)
             self.logger.info(self.color_log(f"Decision tree model saved to {self.model_path}", Fore.GREEN))
-
 
     def load_model(self):
         """Load the decision tree model from the specified directory."""
@@ -173,11 +171,9 @@ class FeatureEngineeringCLI:
             self.model = joblib.load(self.model_path)
             self.logger.info(self.color_log(f"Decision tree model loaded from {self.model_path}", Fore.GREEN))
 
-
     def color_log(self, message: str, color: str = Fore.GREEN) -> str:
         return f"{color}{message}{Style.RESET_ALL}"
     
-
     def drop_nontrain(self, table: Table) -> Table:
         """
         Drop non-training columns.
@@ -222,7 +218,6 @@ class FeatureEngineeringCLI:
         recommendations['cnn'] = 'MinMaxScaler + Sigmoid'
 
         return recommendations
-    
 
     def apply_scaling(self, df: pd.DataFrame, scaler_type: str = 'StandardScaler'):
         numeric_df = df.select_dtypes(include=[np.number])
@@ -259,7 +254,6 @@ class FeatureEngineeringCLI:
 
         return scaled_df
 
-
     def get_feature_with_highest_shap(self, shap_values: np.ndarray, dataset: pd.DataFrame, sample_index: int) -> tuple:
         abs_shap_values = np.abs(shap_values[sample_index, :])
         highest_shap_index = np.argmax(abs_shap_values)
@@ -270,7 +264,6 @@ class FeatureEngineeringCLI:
 
         return feature_name, feature_value
     
-
     def categorical_encoding_lex(self, df: DataFrame) -> DataFrame:
         # Handling lexical features: tld_hash
         
@@ -281,25 +274,6 @@ class FeatureEngineeringCLI:
 
         return df
 
-    def categorical_encoding_tls_rdap(self, df: DataFrame) -> DataFrame:
-        # Handling TLS/RDAP features: registrar_name_hash, root_authority_hash, leaf_authority_hash
-        
-        # Drop features without encoding, as they are not directly encoded but instead removed or handled differently.
-        if 'rdap_registrar_name_hash' in df.columns:
-            df.drop('rdap_registrar_name_hash', axis=1, inplace=True)
-            self.logger.info(self.color_log("Dropped feature: rdap_registrar_name_hash", Fore.GREEN))
-        
-        if 'tls_root_authority_hash' in df.columns:
-            df.drop('tls_root_authority_hash', axis=1, inplace=True)
-            self.logger.info(self.color_log("Dropped feature: tls_root_authority_hash", Fore.GREEN))
-        
-        if 'tls_leaf_authority_hash' in df.columns:
-            df.drop('tls_leaf_authority_hash', axis=1, inplace=True)
-            self.logger.info(self.color_log("Dropped feature: tls_leaf_authority_hash", Fore.GREEN))
-
-        return df
-    
-    
     def remove_outliers(self, features, labels, std_multiplier=8):
         if not self.one_line_processing:
             # Directly update self.outliers with new thresholds
@@ -331,81 +305,76 @@ class FeatureEngineeringCLI:
 
         self.logger.info("Completed outlier removal.")
         return features, labels
-
-
+    
+    def select_lexical_features(self, table: Table) -> Table:
+        """
+        Select only relevant columns for processing.
+        """
+        # Filtering columns: include only domain name, label, and columns starting with 'lex'
+        relevant_fields = ['domain_name', 'label'] + [col for col in table.column_names if col.startswith('lex')]
+        return table.select(relevant_fields)
 
 
     def perform_eda(self, model=None, apply_scaling=False) -> None:
-            # Load the data
-            if self.one_line_processing:
-                # For single-record processing, use the provided DataFrame
-                combined_df = self.single_record_df
-                
-                self.logger.info(self.color_log(f"Single-record processing: {combined_df.shape[0]} rows", Fore.GREEN))
+        if self.one_line_processing:
+            # For single-record processing, use the provided DataFrame
+            combined_df = self.single_record_df
+            
+            self.logger.info(self.color_log(f"Single-record processing: {combined_df.shape[0]} rows", Fore.GREEN))
+        else:
+            if self.dga == 'multiclass':
+                # Load only the malign dataset for multiclass mode
+                malign_path = os.path.join(self.DEFAULT_INPUT_DIR, self.malign_path)
+                self.logger.info(self.color_log(f'Malign dataset path: {malign_path}', Fore.GREEN))
+                malign_data = pq.read_table(malign_path) if malign_path else None
+                malign_data = self.select_lexical_features(malign_data) 
+                malign_data = self.drop_nontrain(malign_data)
+                combined_df = malign_data.to_pandas()
             else:
+                # Load and combine benign and malign datasets for other modes
                 benign_path = os.path.join(self.DEFAULT_INPUT_DIR, self.benign_path) if self.benign_path else None
                 malign_path = os.path.join(self.DEFAULT_INPUT_DIR, self.malign_path) if self.malign_path else None
-                
                 self.logger.info(self.color_log(f'Benign dataset path: {benign_path}', Fore.GREEN))
                 self.logger.info(self.color_log(f'Malign dataset path: {malign_path}', Fore.GREEN))
 
-                print(f'Malign dataset path: {malign_path}')
-                print(f'Benign dataset path: {benign_path}')
-                # For full-dataset processing, load and combine benign and malign datasets
-                benign_data = pq.read_table(os.path.join(self.DEFAULT_INPUT_DIR, self.benign_path)) if self.benign_path else None
-                malign_data = pq.read_table(os.path.join(self.DEFAULT_INPUT_DIR, self.malign_path)) if self.malign_path else None
+                benign_data = pq.read_table(benign_path) if benign_path else None
+                malign_data = pq.read_table(malign_path) if malign_path else None
 
+                if self.dga == 'binary':
+                    benign_data = self.select_lexical_features(benign_data)
+                    malign_data = self.select_lexical_features(malign_data)
 
-                # Drop non-training columns and realign schemas
                 benign_data = self.drop_nontrain(benign_data)
                 malign_data = self.drop_nontrain(malign_data)
-                benign_data = benign_data.cast(malign_data.schema)
+
+                # Align schemas by casting benign data to malign data's schema if both datasets exist
+                if benign_data and malign_data:
+                    benign_data = benign_data.cast(malign_data.schema)
+                    combined_data = pa.concat_tables([benign_data, malign_data])
+                    combined_df = combined_data.to_pandas()
+                elif malign_data:
+                    combined_df = malign_data.to_pandas()
+                else:
+                    raise ValueError("No datasets found. Please check the dataset paths.")
+
+            # Log the number of records if datasets are loaded
+            if 'combined_df' in locals():
+                self.logger.info(self.color_log(f"Number of records in combined dataset: {len(combined_df)}", Fore.GREEN))
+
+        # Randomly shuffle the records
+        combined_df = combined_df.sample(frac=1).reset_index(drop=True)
 
 
-                #print number of records in benign and malign datasets
-                benign_records = len(benign_data)
-                malign_records = len(malign_data)
-                self.logger.info(self.color_log(f"Number of records in benign dataset: {benign_records}", Fore.GREEN))
-                self.logger.info(self.color_log(f"Number of records in malign dataset: {malign_records}", Fore.GREEN))
+        # Categorical Encoding
+        # combined_df = self.categorical_encoding_lex(combined_df)
 
-                #get missing values distribution for benign and malign datasets for each feature, save this distribution to txt file
-                benign_missing = benign_data.to_pandas().isnull().sum()
-                malign_missing = malign_data.to_pandas().isnull().sum()
-                missing_values = pd.concat([benign_missing, malign_missing], axis=1)
+        # Extract labels
+        if 'label' in combined_df.columns:
+            labels = combined_df['label']
+        else:
+            raise ValueError("Label column not found in the dataframe.")
 
-                # Calculate percentage of missing values
-                total_records = len(benign_data) + len(malign_data)
-                missing_values['percent_missing_benign'] = (missing_values.iloc[:, 0] / len(benign_data)) * 100
-                missing_values['percent_missing_malign'] = (missing_values.iloc[:, 1] / len(malign_data)) * 100
-
-                # Sort them by biggest difference
-                missing_values['difference_in_percent'] = abs(missing_values['percent_missing_benign'] - missing_values['percent_missing_malign'])
-                missing_values = missing_values.sort_values(by='difference_in_percent', ascending=False)
-                # missing_values.to_csv('missing_values.csv')
-
-                #print total percentage of missing values in benign and malign datasets
-                benign_total_missing = (missing_values['percent_missing_benign'].sum() / total_records) * 100
-                malign_total_missing = (missing_values['percent_missing_malign'].sum() / total_records) * 100
-                self.logger.info(self.color_log(f"Total percentage of missing values in benign dataset: {benign_total_missing:.2f}%", Fore.GREEN))
-                self.logger.info(self.color_log(f"Total percentage of missing values in malign dataset: {malign_total_missing:.2f}%", Fore.GREEN))
-                
-
-                # Concatenate tables and convert to pandas DataFrame
-                combined_data = pa.concat_tables([benign_data, malign_data])
-                combined_df = combined_data.to_pandas()
-
-            # randomly shuffle the records
-            combined_df = combined_df.sample(frac=1).reset_index(drop=True)
-
-            # Categorical Encoding
-            # combined_df = self.categorical_encoding_lex(combined_df)
-
-            # Extract labels
-            if 'label' in combined_df.columns:
-                labels = combined_df['label']
-            else:
-                raise ValueError("Label column not found in the dataframe.")
-
+        if self.dga != 'binary' and self.dga != 'multiclass':
             categorical_features = ['geo_continent_hash', 'geo_countries_hash', 'rdap_registrar_name_hash', 'tls_root_authority_hash', 'tls_leaf_authority_hash', 'lex_tld_hash']
 
             #creating new feature as probability from decision tree predictions trained on categorical features
@@ -454,6 +423,11 @@ class FeatureEngineeringCLI:
                 # Perform cross-validation for a more robust estimate of model performance
                 scores = cross_val_score(pipeline, combined_df[categorical_features], labels, cv=3)
                 self.logger.info(f"Decision Tree Cross-Validation Scores: {scores}")
+
+                # Drop the original categorical features from the dataframe
+                combined_df.drop(columns=categorical_features, inplace=True)
+
+                
             else:
                 # Single-record processing logic
                 self.load_model()  # Load the entire pipeline
@@ -465,9 +439,31 @@ class FeatureEngineeringCLI:
                 else:
                     raise ValueError("Pipeline not found. Please train the pipeline first.")
 
+        # Generate class map based on dga setting
+        unique_labels = combined_df['label'].unique()
+        class_map = {}
+        
+        if self.dga == 'binary':
+            for label in unique_labels:
+                cleaned_labels = [label.split(":")[0] + ":" + label.split(":")[1] for label in unique_labels]
+                if label.startswith("benign"):
+                    class_map[label] = 0
+                elif label.startswith("dga"):
+                    class_map[label] = 1
+            # Filter to only use lexical features
+            features = combined_df.filter(regex='^lex', axis=1)
+        elif self.dga == 'multiclass':
+            inverse_dga_class_map = {v: k for k, v in dga_class_map.items()}
+            cleaned_labels = [label.split(":")[0] + ":" + label.split(":")[1] for label in unique_labels]
+            for label, cleaned_label in zip(unique_labels, cleaned_labels):
+                if cleaned_label in inverse_dga_class_map:
+                    class_map[label] = inverse_dga_class_map[cleaned_label]
+            # Filter to only use lexical features
+            features = combined_df.filter(regex='^lex', axis=1)
+            # Print counts for each class
+            self.logger.info(self.color_log(f"Class counts: {combined_df['label'].value_counts()}", Fore.GREEN))
 
-            unique_labels = combined_df['label'].unique()
-            class_map = {}
+        else:  # self.dga is False or any other value
             for label in unique_labels:
                 if label.startswith("benign"):
                     class_map[label] = 0
@@ -477,65 +473,49 @@ class FeatureEngineeringCLI:
                     class_map[label] = 1 
                 elif label.startswith("phishing"):
                     class_map[label] = 1
-    
 
-            self.logger.info(self.color_log(f"Generated class map: {class_map}", Fore.GREEN))
+        self.logger.info(self.color_log(f"Generated class map: {class_map}", Fore.GREEN))
 
-            # Separate labels and features
-            labels = combined_df['label'].apply(lambda x: class_map.get(x, -1))  # -1 for any label not in class_map
-            features = combined_df.drop('label', axis=1).copy()
-
-            # Process timestamps
-            for col in features.columns:
-                if com.is_timedelta64_dtype(features[col]):
-                    features[col] = features[col].dt.total_seconds()
-                elif com.is_datetime64_any_dtype(features[col]):
-                    features[col] = features[col].astype(np.int64) // 10**9
-
-            # Convert bool columns to float
-            for column in features.columns:
-                if features[column].dtype == 'bool':
-                    features[column] = features[column].astype('float64')
-
-            features = features.drop(features.columns[0], axis=1)
-
-            # Handling missing values in features
-            features.fillna(-1, inplace=True)
-
-            features, labels = self.remove_outliers(features, labels, std_multiplier=8)
+        labels = combined_df['label'].apply(lambda x: class_map.get(x, -1))  # -1 for any label not in class_map
+        features = combined_df.drop('label', axis=1).copy()
 
 
-            # Apply scaling if requested
-            if apply_scaling:
-                scaler_recommendations = self.scaler_recommendation(features)
-                scaler_type = scaler_recommendations.get(model.lower(), 'StandardScaler')
-                self.logger.info(self.color_log(f"Applying {scaler_type} scaling to the features.", Fore.YELLOW))
-                features = self.apply_scaling(features, scaler_type)
-                self.logger.info(self.color_log("Scaling applied to the features\n", Fore.GREEN))
+        # Process timestamps
+        for col in features.columns:
+            if com.is_timedelta64_dtype(features[col]):
+                features[col] = features[col].dt.total_seconds()
+            elif com.is_datetime64_any_dtype(features[col]):
+                features[col] = features[col].astype(np.int64) // 10**9
 
-            # Save the modified dataset as a Parquet file
-            modified_data = pa.Table.from_pandas(features)
-            output_path = os.path.join(self.DEFAULT_INPUT_DIR, 'modified_dataset.parquet')
-            feature_names = features.columns
+        # Convert bool columns to float
+        for column in features.columns:
+            if features[column].dtype == 'bool':
+                features[column] = features[column].astype('float64')
 
-            # pq.write_table(modified_data, output_path)
-            # self.logger.info(self.color_log(f"Modified combined dataset saved to {output_path}", Fore.GREEN))
+        features = features.drop(features.columns[0], axis=1)
 
-            self.logger.info(self.color_log("Head of modified combined dataset:", Fore.YELLOW))
-            self.logger.info(features)
+        # Handling missing values in features
+        features.fillna(-1, inplace=True)
 
+        features, labels = self.remove_outliers(features, labels, std_multiplier=8)
 
-            return torch.tensor(features.values).float(), torch.tensor(labels.values).float(), feature_names, class_map
+        # Apply scaling if requested
+        if apply_scaling:
+            scaler_recommendations = self.scaler_recommendation(features)
+            scaler_type = scaler_recommendations.get(model.lower(), 'StandardScaler')
+            self.logger.info(self.color_log(f"Applying {scaler_type} scaling to the features.", Fore.YELLOW))
+            features = self.apply_scaling(features, scaler_type)
+            self.logger.info(self.color_log("Scaling applied to the features\n", Fore.GREEN))
 
+        # Save the modified dataset as a Parquet file
+        modified_data = pa.Table.from_pandas(features)
+        output_path = os.path.join(self.DEFAULT_INPUT_DIR, 'modified_dataset.parquet')
+        feature_names = features.columns
 
-def choose_dataset(files, dataset_type):
-    print(f"Choose {dataset_type.upper()} dataset:")
-    print("-" * 22)
-    for idx, file in enumerate(files, start=1):
-        print(Fore.GREEN + f"[{idx}]: {file}")
+        self.logger.info(self.color_log("Head of modified combined dataset:", Fore.YELLOW))
+        self.logger.info(features)
 
-    choice = int(input(Fore.YELLOW + f"Enter the number corresponding to the {dataset_type} dataset: "))
-    return files[choice - 1]
+        return torch.tensor(features.values).float(), torch.tensor(labels.values).float(), feature_names, class_map
 
 def display_dataset_subset(x_train, y_train, dataset_name, dimension, subset_size=10):
     subset_features = pd.DataFrame(x_train[:subset_size].numpy(), columns=[f"Feature_{i}" for i in range(x_train.shape[1])])
@@ -549,9 +529,8 @@ def display_dataset_subset(x_train, y_train, dataset_name, dimension, subset_siz
     print(subset_labels)
     print("Dimension:", dimension)
 
-
-def NDF(model: str, scaling: bool, input_data, one_line_processing: bool):
-    fe_cli = FeatureEngineeringCLI(input_data=input_data, one_line_processing=one_line_processing)
+def NDF(model: str, scaling: bool, input_data, one_line_processing: bool, dga: str = 'False'):
+    fe_cli = FeatureEngineeringCLI(input_data=input_data, one_line_processing=one_line_processing, dga=dga)
 
     features, labels, feature_names, class_map = fe_cli.perform_eda(model, scaling)
     
@@ -561,9 +540,8 @@ def NDF(model: str, scaling: bool, input_data, one_line_processing: bool):
         dataset_name = f"single_record_dataset_{current_date}"
     else:
         # For full dataset processing, extract the dataset names from the input paths.
-        benign_name = ''.join(input_data['benign'].split('_')[:2])
         malign_name = ''.join(input_data['malign'].split('_')[:2])
-        dataset_name = f"dataset_{benign_name}_{malign_name}_{current_date}"
+        dataset_name = f"dataset_{malign_name}_{current_date}"
         dataset_name = dataset_name.replace('.parquet', '') + '.parquet'
 
     dataset = {
@@ -577,7 +555,7 @@ def NDF(model: str, scaling: bool, input_data, one_line_processing: bool):
 
     # Adjust the split to only proceed if not one_line_processing
     if not one_line_processing:
-        x_train, x_test, y_train, y_test = train_test_split(
+        x_train, _, y_train, _ = train_test_split(
             dataset['features'],
             dataset['labels'],
             test_size=0.2,
