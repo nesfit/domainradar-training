@@ -15,5 +15,7 @@ class Config:
       #'benign_2312_anonymized': 'benign_2312_anonymized',
       #'misp_2402': 'misp_2402',
 
-      'norbi_malware_test': 'norbi_malware_test',
+      #'norbi_malware_test': 'norbi_malware_test',
+      #'phishing_4': 'phishing_4'
+      'malware_3': 'malware_3'
   }
