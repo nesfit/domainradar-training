@@ -17,5 +17,7 @@ class Config:
 
       #'norbi_malware_test': 'norbi_malware_test',
       #'phishing_4': 'phishing_4'
-      'malware_3': 'malware_3'
+      #'malware_3': 'malware_3'
+      #'phishing_2406_strict': 'phishing_2406_strict'
+      'malware_2406_strict': 'malware_2406_strict'
   }
