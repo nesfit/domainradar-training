@@ -14,10 +14,10 @@ class Config:
       #'benign_2312': 'benign_2312',
       #'benign_2312_anonymized': 'benign_2312_anonymized',
       #'misp_2402': 'misp_2402',
-
       #'norbi_malware_test': 'norbi_malware_test',
       #'phishing_4': 'phishing_4'
       #'malware_3': 'malware_3'
       #'phishing_2406_strict': 'phishing_2406_strict'
-      'malware_2406_strict': 'malware_2406_strict'
+      #'malware_2406_strict': 'malware_2406_strict'
+      #'malware_2406_strict_HTML': 'malware_2406_strict_HTML'
   }

@@ -76,4 +76,7 @@ projection = {
     "ip_data.rdap.ip_version": 1,
     "ip_data.rdap.entities": 1,
     "ip_data.rdap.network": 1,
+    #HTML
+    "html.compressed_html": 1,
+
 }

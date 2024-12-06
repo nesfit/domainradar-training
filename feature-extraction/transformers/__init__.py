@@ -24,6 +24,8 @@ from .lexical import lex as transform_lexical_save
 from .geo import geo as transform_geo
 # transform RDAP
 from .rdap import rdap as transform_rdap
+# transform html
+from .html_transformer import transform_html
 
 # drop non-training columns (done before training)
 # from .drop_nontrain import drop_nontrain as transform_drop

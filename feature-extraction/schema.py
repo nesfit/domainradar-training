@@ -1,5 +1,6 @@
 from pymongoarrow.api import Schema
-from pyarrow import list_, string, int64, float64, bool_, struct, dictionary, timestamp
+from pyarrow import list_, string, int64, float64, bool_, struct, dictionary, timestamp, binary
+from pymongoarrow.types import BinaryType
 
 # Welcome to the schema file. This is where you define the schema of
 # the data you're loading from MongoDB. This is needed because the
@@ -177,4 +178,7 @@ schema = Schema({
     ]),
     "tls": tls_data,
     "ip_data": list_(ip_data_entry),
+     "html": struct([
+        ("compressed_html", BinaryType(subtype=0)),
+    ]),
 })
