@@ -1,2 +1,0 @@
-Directory for trained models.
-

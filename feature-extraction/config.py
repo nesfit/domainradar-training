@@ -20,4 +20,5 @@ class Config:
       #'phishing_2406_strict': 'phishing_2406_strict'
       #'malware_2406_strict': 'malware_2406_strict'
       #'malware_2406_strict_HTML': 'malware_2406_strict_HTML'
+      'radek_test': 'radek_test'
   }
