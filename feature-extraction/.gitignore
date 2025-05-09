@@ -1,7 +1,6 @@
 .env
 .venv
 cache/**/*.parquet
-*.parquet
 .ipynb_checkpoints
 shap_values.pickle.dat
 
