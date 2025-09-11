@@ -1,36 +1,54 @@
 from pandas import DataFrame, Series, concat
+import pandas as pd
 from ._helpers import map_dict_to_series, get_normalized_entropy, simhash, todays_midnight_timestamp
 
 def rdap(df: DataFrame) -> DataFrame:
     """
     TODO: document
     """
+
     extraction_ts = todays_midnight_timestamp()
 
-    # add rdap derived columns
-    df['rdap_registration_period'] = df['rdap_expiration_date'] - df['rdap_registration_date']
-    #df['rdap_domain_age'] = (df['rdap_evaluated_on'] - df['rdap_registration_date'])
-    df['rdap_domain_age'] = df['rdap_registration_date'].apply(lambda x: (extraction_ts - x).total_seconds() / (60 * 60 * 24))
-    #df['rdap_time_from_last_change'] = df['rdap_evaluated_on'] - df['rdap_last_changed_date']
-    df['rdap_time_from_last_change'] = df['rdap_last_changed_date'].apply(lambda x: (extraction_ts - x).total_seconds() / (60 * 60 * 24))
+    #df['rdap_registration_period'] = df['rdap_expiration_date'] - df['rdap_registration_date']
 
+    def _compute_time_feats(row):
+        day_sec = 60 * 60 * 24
+        reg = row['rdap_registration_date']
+        last = row['rdap_last_changed_date']
+        exp = row['rdap_expiration_date']
 
-    # rdap_domain_active_time = min(extraction_ts, rdap_expiration_date) - rdap_registration_date
-    df["rdap_domain_active_time"] = (df["rdap_expiration_date"].apply(lambda x: min(extraction_ts, x)) \
-                                     - df['rdap_registration_date']).apply(lambda x: x.total_seconds() / (60 * 60 * 24))
-    #df["rdap_domain_active_time"] = df[["dns_evaluated_on", "rdap_expiration_date"]].min(axis=1)  - df['rdap_registration_date']
+        if pd.isna(reg):
+            age = pd.NA
+            active_time = pd.NA
+        else:
+            age = max(0, (extraction_ts - reg).total_seconds() / day_sec)
+            active_end = extraction_ts if pd.isna(exp) or exp > extraction_ts else exp
+            active_time = max(0, (active_end - reg).total_seconds() / day_sec)
 
-    #NOTUSED# df['rdap_domain_time_from_last_change'] = df['dns_evaluated_on'] - df['domain_last_changed_date']
+        if pd.isna(last):
+            last_change = pd.NA
+        else:
+            last_change = max(0, (extraction_ts - last).total_seconds() / day_sec)
+
+        return pd.Series({
+            'rdap_domain_age': age,
+            'rdap_time_from_last_change': last_change,
+            'rdap_domain_active_time': active_time
+        })
+
+    df[['rdap_domain_age', 'rdap_time_from_last_change', 'rdap_domain_active_time']] = df.apply(
+        _compute_time_feats, axis=1
+    )
 
     df["rdap_has_dnssec"] = df["rdap_dnssec"].astype("bool")
-    
     df["rdap_registrar_name_len"], df["rdap_registrar_name_entropy"], df["rdap_registrar_name_hash"], \
-    df["rdap_registrant_name_len"], df["rdap_registrant_name_entropy"], \
-    df["rdap_admin_name_len"], df["rdap_admin_name_entropy"], \
-    df["rdap_admin_email_len"], df["rdap_admin_email_entropy"] = zip(
+        df["rdap_registrant_name_len"], df["rdap_registrant_name_entropy"], \
+        df["rdap_admin_name_len"], df["rdap_admin_name_entropy"], \
+        df["rdap_admin_email_len"], df["rdap_admin_email_entropy"] = zip(
         *df["rdap_entities"].apply(get_rdap_domain_features)
     )
 
+    
     df["rdap_ip_v4_count"], df["rdap_ip_v6_count"], \
         df["rdap_ip_shortest_v4_prefix_len"], df["rdap_ip_longest_v4_prefix_len"], \
         df["rdap_ip_shortest_v6_prefix_len"], df["rdap_ip_longest_v6_prefix_len"], \
