@@ -1,0 +1,9 @@
+# Jupyter
+**/.ipynb_checkpoints/
+# Python cache
+**/__pycache__/
+# Big local data & models
+phishing/dataframes/
+phishing/models/
+# (optional) keep lockfile local for now
+poetry.lock
